@@ -1,0 +1,41 @@
+name: .NET Release
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Determine tag
+        id: tag
+        run: |
+          $date=(Get-Date -Format 'yyyy-MM-dd')
+          "tag=$date" >> $env:GITHUB_ENV
+          "ZipFileName=LockShowWindowContents-$date.zip" >> $env:GITHUB_ENV
+      - name: Publish LockShowWindowContents
+        run: |
+          dotnet publish LockShowWindowContents\LockShowWindowContents.csproj -c Release -r win-x64 -p:IsCI=true -p:PublishSingleFile=true -o publish
+          Compress-Archive -Path README.md,LICENSE.md,publish\* -Destination $env:ZipFileName
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.tag }}
+          files: LockShowWindowContents-*.zip
